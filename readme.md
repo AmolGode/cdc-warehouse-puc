@@ -2,8 +2,9 @@
 
 PUC to demo a CDC pipeline: **Postgres → Debezium → Kafka → Python consumer → Postgres warehouse.**
 
-![alt text](HLD.png)
+## High-Level Design
 
+![High-level design: source_project writes to source_db, Debezium tails its WAL and publishes change events to Kafka, warehouse_project's consumer reads those and upserts into warehouse_db](HLD.png)
 
 ## What this project is
 
