@@ -2,6 +2,9 @@
 
 PUC to demo a CDC pipeline: **Postgres → Debezium → Kafka → Python consumer → Postgres warehouse.**
 
+![alt text](HLD.png)
+
+
 ## What this project is
 
 - 2 Django projects, 2 Postgres DBs.
