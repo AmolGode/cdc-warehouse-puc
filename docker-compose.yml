@@ -1,0 +1,112 @@
+services:
+  source-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: source_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    ports:
+      - "5442:5432"
+    command: ["postgres", "-c", "wal_level=logical"]
+    volumes:
+      - source_db_data:/var/lib/postgresql/data
+
+  warehouse-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: warehouse_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    ports:
+      - "5443:5432"
+    command: ["postgres", "-c", "wal_level=logical"]
+    volumes:
+      - warehouse_db_data:/var/lib/postgresql/data
+
+  source-app:
+    build: ./source_project
+    ports:
+      - "8010:8000"
+    depends_on:
+      source-db:
+        condition: service_healthy
+    environment:
+      DB_HOST: source-db
+      DB_PORT: 5432
+    volumes:
+      - ./source_project:/app
+
+  warehouse-app:
+    build: ./warehouse_project
+    ports:
+      - "8011:8000"
+    depends_on:
+      warehouse-db:
+        condition: service_healthy
+    environment:
+      DB_HOST: warehouse-db
+      DB_PORT: 5432
+    volumes:
+      - ./warehouse_project:/app
+
+  kafka:
+    image: quay.io/debezium/kafka:3.6
+    container_name: kafka
+    hostname: kafka
+
+    ports:
+      - "9092:9092"
+
+    environment:
+      CLUSTER_ID: kafka-cluster-id-1
+      NODE_ID: 1
+      NODE_ROLE: combined
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+
+    healthcheck:
+      test: ["CMD-SHELL", "/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+
+
+  kafka-connect:
+    image: quay.io/debezium/connect:3.6
+    container_name: connect
+    depends_on:
+      - kafka
+      - source-db
+
+      # kafka:
+      #   condition: service_healthy
+      # source-db:
+      #   condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: my_connect_configs
+      OFFSET_STORAGE_TOPIC: my_connect_offsets
+      STATUS_STORAGE_TOPIC: my_connect_statuses
+      BOOTSTRAP_SERVERS: kafka:9092
+
+volumes:
+  source_db_data:
+  warehouse_db_data:
+
+
